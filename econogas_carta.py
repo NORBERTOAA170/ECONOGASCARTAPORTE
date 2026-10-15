@@ -2,6 +2,7 @@ from datetime import datetime, time, date
 import time as time_module
 from zoneinfo import ZoneInfo
 import os
+import json
 import requests
 import uuid
 import streamlit as st
@@ -28,9 +29,45 @@ try:
 except ImportError:
     QRCODE_DISPONIBLE = False
 
-# Nombres de archivos de recursos en tu repositorio
+# Nombres de archivos de recursos y base de datos local
 LOGO_FILE = "logo_econogas.jpg"
 QR_TEMP_FILE = "temp_qr_econogas.png"
+HISTORIAL_FILE = "historial_econogas.json"
+
+# ================= FUNCIONES PARA MANEJO DE HISTORIAL PERSISTENTE =================
+def cargar_historial():
+    """Lee el historial guardado en el archivo JSON local."""
+    if os.path.exists(HISTORIAL_FILE):
+        try:
+            with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Reconvertir fecha_dt a objeto date de Python
+                for item in data:
+                    if "fecha_dt_str" in item:
+                        item["fecha_dt"] = datetime.strptime(item["fecha_dt_str"], "%Y-%m-%d").date()
+                    else:
+                        item["fecha_dt"] = datetime.now(ZoneInfo("America/Mexico_City")).date()
+                return data
+        except Exception:
+            return []
+    return []
+
+def guardar_historial(historial):
+    """Guarda la lista del historial en el archivo JSON local."""
+    try:
+        historial_a_guardar = []
+        for item in historial:
+            item_copy = item.copy()
+            # Convertir objeto date a string para poder serializar en JSON
+            if "fecha_dt" in item_copy and isinstance(item_copy["fecha_dt"], date):
+                item_copy["fecha_dt_str"] = item_copy["fecha_dt"].strftime("%Y-%m-%d")
+                del item_copy["fecha_dt"]
+            historial_a_guardar.append(item_copy)
+            
+        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
+            json.dump(historial_a_guardar, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        pass
 
 # ================= CONFIGURACIÓN DE LA PÁGINA Y ESTILO AZUL CIELO =================
 st.set_page_config(
@@ -63,8 +100,9 @@ MASTER_PASSWORD = "ECONO2026"
 if "auth_econogas" not in st.session_state:
     st.session_state.auth_econogas = False
 
+# Cargar el historial desde el archivo persistente
 if "historial_econogas" not in st.session_state:
-    st.session_state.historial_econogas = []
+    st.session_state.historial_econogas = cargar_historial()
 
 if "ultimo_registro_hash_econogas" not in st.session_state:
     st.session_state.ultimo_registro_hash_econogas = None
@@ -172,7 +210,7 @@ def generar_qr_archivo(contenido):
     except Exception:
         return False
 
-# ================= FUNCIÓN PARA GENERAR EL PDF CON SECCIÓN 6 EXACTA =================
+# ================= FUNCIÓN PARA GENERAR EL PDF =================
 def generar_pdf(d):
     try:
         pdf = FPDF(orientation='P', unit='mm', format='A4')
@@ -356,6 +394,9 @@ with st.sidebar:
         st.rerun()
 
 ahora_mx = datetime.now(ZoneInfo("America/Mexico_City"))
+
+# Re-cargar siempre el historial al navegar para reflejar cambios globales
+st.session_state.historial_econogas = cargar_historial()
 
 # ================= FORMULARIO PRINCIPAL =================
 if accion == "Nueva Carta Porte":
@@ -546,7 +587,11 @@ if accion == "Nueva Carta Porte":
 
             st.session_state.ultimo_registro_hash_econogas = actual_hash
             st.session_state.registro_bloqueado_econogas = True
+            
+            # Insertar en memoria y guardar en archivo JSON local
             st.session_state.historial_econogas.insert(0, datos_nueva_carta)
+            guardar_historial(st.session_state.historial_econogas)
+            
             st.rerun()
 
 elif accion == "Historial de Documentos":
@@ -614,4 +659,5 @@ elif accion == "Historial de Documentos":
 
             if indices_a_borrar is not None:
                 st.session_state.historial_econogas.pop(indices_a_borrar)
+                guardar_historial(st.session_state.historial_econogas)
                 st.rerun()
