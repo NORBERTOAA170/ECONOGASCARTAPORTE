@@ -28,8 +28,9 @@ try:
 except ImportError:
     QRCODE_DISPONIBLE = False
 
-# Nombre del archivo del logo en tu repositorio
+# Nombres de archivos de recursos en tu repositorio
 LOGO_FILE = "logo_econogas.jpg"
+QR_TEMP_FILE = "temp_qr_econogas.png"
 
 # ================= CONFIGURACIÓN DE LA PÁGINA Y ESTILO AZUL CIELO =================
 st.set_page_config(
@@ -152,28 +153,26 @@ def calcular_distancia_km(origen_str, destino_str):
         return None
     return None
 
-# ================= FUNCIÓN PARA GENERAR CÓDIGO QR =================
-def generar_qr_bytes(contenido):
+# ================= FUNCIÓN PARA GENERAR QR EN DISCO =================
+def generar_qr_archivo(contenido):
     if not QRCODE_DISPONIBLE:
-        return None
+        return False
     try:
         qr = qrcode.QRCode(
             version=None,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=3,
+            box_size=4,
             border=1,
         )
         qr.add_data(contenido)
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
-        img_bytes = io.BytesIO()
-        img.save(img_bytes, format='PNG')
-        img_bytes.seek(0)
-        return img_bytes
+        img.save(QR_TEMP_FILE)
+        return True
     except Exception:
-        return None
+        return False
 
-# ================= FUNCIÓN PARA GENERAR EL PDF =================
+# ================= FUNCIÓN PARA GENERAR EL PDF CON SECCIÓN 6 EXACTA =================
 def generar_pdf(d):
     try:
         pdf = FPDF(orientation='P', unit='mm', format='A4')
@@ -284,29 +283,35 @@ def generar_pdf(d):
         pdf.cell(95, 5, f"Peso Total: {d.get('peso_mercancia', '')}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(4)
 
-        # 6. SECCIÓN DE VALIDACIÓN Y CÓDIGO QR CON ENLACE SAT
+        # 6. SECCIÓN DE VALIDACIÓN Y CÓDIGO QR EXACTA (IGUAL A NAUPAGAS)
         seccion_pdf("6. VALIDACIÓN Y VERIFICACIÓN OPERATIVA")
         
         enlace_qr = "https://loginda.siat.sat.gob.mx/nidp/app/login?id=ciec&sid=0&option=credential&sid=0&target=https%3A%2F%2Fverificacfdi.facturaelectronica.sat.gob.mx%2Foauth2%2Fcallback%26scope%3Dmscontribuyente%26code_challenge%3DOfkQhIkHLKEVoxtqW3F3RnIR-cUvRqWF3NEUPFGPvDA%26code_challenge_method%3DS256%26state%3Dg9GL1UZNuFOWSrNeAdEUDRF0RATmkhaCjnz2YOldQ1ZgPIAx8nxrxm6gYV5G1eBLVRAx7nBtdUo9q96KfBfMWfdiXOKoG7l3HcjW78km4jpb7puSzBmW0gYKHClUT5op93de%2BGqEUdwbQXvy%2Bq%2B%2FR08agJatdq5sWNUI6A%2B9qQfRrIcsV6DW5LBStnxqskw4icV%2Fo52LwkOgjZ%2FZHQP46N2Jvxk01CXpItNYWoFSnug9voK72sLWEjiqxv8L6LRvz0Vym3cltWNSE%2FXA%2BzROnWevc0wtsaE5cqW1%2FqvEYcxD5az6nsdVasiSWl%2BeD7bCgZ%2FiFPeFIZhNocmdgS70YS1UQjhlKGue%2B%2BflJAB3XYoQcA0cNDL1QkrNTzd7J0OY8DEiqQBJyoAyC4w62vdIw1AiLzS9THpXuVm6Hd%2FBq56zyLRi9IGBxXn3NyWd0ns9DDGTslm2WAnS2YlAs8rU4Q2Ocu837Vf1T4r3mwOw0ppA6ZpsaAtARRh%2BNjf49BmiCBY%2BVJjbu2fJ60vLdEorUmbkyd7y4DUDqYMK6%2FF3WWs6QFHpX4Thuw2sPvVj8U4duCVgNp6CMkHBkOS2J1zG%2FKFuMNLlJSOeg%2FYSJ%2BgSwyn55wCqlPzpZCqIHwxAFh3gm4wHFWgpOArJZB1hMcrO9T98YF7GQ2uLZNm4vFjxgaU%3D"
         
-        qr_bytes = generar_qr_bytes(enlace_qr)
-        
-        if qr_bytes:
-            y_inicial = pdf.get_y()
+        if generar_qr_archivo(enlace_qr) and os.path.exists(QR_TEMP_FILE):
+            y_qr = pdf.get_y()
             try:
-                pdf.image(qr_bytes, x=15, y=y_inicial, w=28)
+                pdf.image(QR_TEMP_FILE, x=15, y=y_qr, w=28)
             except:
                 pass
-            pdf.set_x(48)
+            
+            # Posicionar el texto al lado derecho del QR de manera exacta
+            pdf.set_xy(48, y_qr)
             pdf.set_font("helvetica", "B", 8)
             pdf.cell(0, 4, f"IDCCP (Folio Carta Porte): {d.get('idccp', '')}", new_x="LMARGIN", new_y="NEXT")
+            
             pdf.set_x(48)
             pdf.set_font("helvetica", "", 7)
             pdf.cell(0, 4, f"Estatus de Verificación: ACCESO AL PORTAL DE ACCESO / SAT", new_x="LMARGIN", new_y="NEXT")
+            
             pdf.set_x(48)
             pdf.cell(0, 4, f"Permiso SCT: {d.get('tipo_permiso_sct', '')} - {d.get('num_permiso_sct', '')}", new_x="LMARGIN", new_y="NEXT")
+            
             pdf.set_x(48)
             pdf.multi_cell(0, 4, "Este documento ampara el traslado operado con las especificaciones técnicas del catálogo SCT / SAT versión 3.1.", new_x="LMARGIN", new_y="NEXT")
+            
+            # Asegurar espacio debajo del bloque del QR
+            pdf.ln(10)
 
         return bytes(pdf.output(dest='S'))
     except Exception as e:
