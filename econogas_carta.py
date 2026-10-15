@@ -3,10 +3,11 @@ import time as time_module
 from zoneinfo import ZoneInfo
 import os
 import requests
+import uuid
 import streamlit as st
 from PIL import Image
 
-# Librerías de mapas y PDF
+# Librerías de mapas, QR y PDF
 try:
     from geopy.geocoders import Nominatim
     from geopy.distance import geodesic
@@ -20,14 +21,42 @@ try:
 except ImportError:
     FPDF_DISPONIBLE = False
 
-# ================= CONFIGURACIÓN DE LA PÁGINA =================
+try:
+    import qrcode
+    import io
+    QRCODE_DISPONIBLE = True
+except ImportError:
+    QRCODE_DISPONIBLE = False
+
+# Nombre del archivo del logo en tu repositorio
+LOGO_FILE = "logo_econogas.jpg"
+
+# ================= CONFIGURACIÓN DE LA PÁGINA Y ESTILO AZUL CIELO =================
 st.set_page_config(
-    page_title="ECONOGAS - Generador de Cartas y Responsivas",
-    page_icon="logo_econogas.jpg",
+    page_title="ECONOGAS - Módulo Carta Porte 3.1",
+    page_icon=LOGO_FILE if os.path.exists(LOGO_FILE) else "🔵",
     layout="wide"
 )
 
-MASTER_PASSWORD = "ECONO2026"
+# Estilo visual con tonos azul cielo suaves y formales
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #f4f8fb;
+    }
+    .stButton>button {
+        background-color: #0077b6;
+        color: white;
+        border-radius: 6px;
+    }
+    .stButton>button:hover {
+        background-color: #0096c7;
+        color: white;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+MASTER_PASSWORD = "ECONOGAS2026"
 
 # Inicializar estados en la sesión si no existen
 if "auth_econogas" not in st.session_state:
@@ -123,127 +152,182 @@ def calcular_distancia_km(origen_str, destino_str):
         return None
     return None
 
+# ================= FUNCIÓN PARA GENERAR CÓDIGO QR =================
+def generar_qr_bytes(contenido):
+    if not QRCODE_DISPONIBLE:
+        return None
+    try:
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=3,
+            border=1,
+        )
+        qr.add_data(contenido)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format='PNG')
+        img_bytes.seek(0)
+        return img_bytes
+    except Exception:
+        return None
+
 # ================= FUNCIÓN PARA GENERAR EL PDF =================
 def generar_pdf(d):
-    pdf = FPDF(orientation='P', unit='mm', format='A4')
-    pdf.add_page()
-    
-    if os.path.exists("logo_econogas.jpg"):
-        try:
-            pdf.image("logo_econogas.jpg", 10, 10, 25)
-        except:
-            pass
-            
-    pdf.set_font("helvetica", "B", 14)
-    pdf.cell(0, 8, "ECONOGAS S.A. DE C.V.", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("helvetica", "B", 11)
-    pdf.cell(0, 6, "CARTA RESPONSIVA Y ASIGNACIÓN DE UNIDAD / TRANSPORTE", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(0, 5, f"Fecha de Emisión: {d['fecha_registro']}", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(4)
+    try:
+        pdf = FPDF(orientation='P', unit='mm', format='A4')
+        pdf.add_page()
+        
+        if os.path.exists(LOGO_FILE):
+            try:
+                pdf.image(LOGO_FILE, 10, 10, 25)
+            except:
+                pass
+                
+        pdf.set_font("helvetica", "B", 14)
+        pdf.cell(0, 8, "ECONOGAS S.A. DE C.V.", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("helvetica", "B", 11)
+        pdf.cell(0, 6, "COMPLEMENTO CARTA PORTE 3.1 - TRÁNSITO FEDERAL", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(0, 5, f"Fecha de Emisión: {d.get('fecha_registro', '')} | IDCCP: {d.get('idccp', '')}", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(4)
 
-    def seccion_pdf(titulo):
-        pdf.set_fill_color(220, 225, 230)
-        pdf.set_font("helvetica", "B", 9)
-        pdf.cell(0, 6, f"  {titulo}", fill=True, new_x="LMARGIN", new_y="NEXT")
+        def seccion_pdf(titulo):
+            pdf.set_fill_color(217, 234, 253) # Tono azul cielo suave
+            pdf.set_font("helvetica", "B", 9)
+            pdf.cell(0, 6, f"  {titulo}", fill=True, new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(2)
+
+        # 1. Datos del Emisor
+        seccion_pdf("1. DATOS DEL EMISOR Y PERMISOS SCT")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(95, 5, f"Empresa / Razón Social: {d.get('nombre_emisor', '')}", new_x="RIGHT", new_y="TOP")
+        pdf.cell(95, 5, f"RFC Emisor: {d.get('rfc_emisor', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(95, 5, f"Tipo Permiso SCT: {d.get('tipo_permiso_sct', '')}", new_x="RIGHT", new_y="TOP")
+        pdf.cell(95, 5, f"Número Permiso SCT: {d.get('num_permiso_sct', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+        # 2. Datos del Operador / Chofer
+        seccion_pdf("2. DATOS DEL OPERADOR / CHOFER (FIGURA TRANSPORTE)")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(95, 5, f"Chofer: {d.get('nombre_chofer', '')}", new_x="RIGHT", new_y="TOP")
+        pdf.cell(95, 5, f"RFC Chofer: {d.get('rfc_chofer', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(95, 5, f"Tipo de Licencia: {d.get('tipo_licencia', '')}", new_x="RIGHT", new_y="TOP")
+        pdf.cell(95, 5, f"Número de Licencia: {d.get('num_licencia', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+        # 3. Unidad y Seguro
+        seccion_pdf("3. DATOS DE LA UNIDAD Y SEGURO DE RESPONSABILIDAD")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(95, 5, f"Unidad: {d.get('tipo_unidad', '')} - Eco: {d.get('eco_unidad', '')}", new_x="RIGHT", new_y="TOP")
+        pdf.cell(95, 5, f"Placas: {d.get('placas', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(95, 5, f"Marca/Modelo: {d.get('marca_modelo', '')} (Cap: {d.get('capacidad', '')})", new_x="RIGHT", new_y="TOP")
+        pdf.cell(95, 5, f"Aseguradora: {d.get('aseguradora', '')} | Póliza: {d.get('num_poliza', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+        # 4. Origen y Destino
+        seccion_pdf("4. RUTA DE TRÁNSITO (ORIGEN Y DESTINO)")
+        
+        pdf.set_font("helvetica", "B", 8)
+        pdf.cell(18, 5, "ORIGEN:", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(100, 5, f"{d.get('nombre_origen', '')}", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "B", 8)
+        pdf.cell(12, 5, "RFC:", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(0, 5, f"{d.get('rfc_origen', '')}", new_x="LMARGIN", new_y="NEXT")
+        
+        pdf.set_font("helvetica", "B", 8)
+        pdf.cell(28, 5, "Fecha de Salida:", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(0, 5, f"{d.get('fecha_salida', '')}", new_x="LMARGIN", new_y="NEXT")
+        
+        pdf.set_font("helvetica", "B", 8)
+        pdf.cell(18, 5, "Dirección:", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "", 8)
+        pdf.multi_cell(0, 5, f"{d.get('dir_origen', '')}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(2)
 
-    # 1. Datos del Emisor
-    seccion_pdf("1. DATOS DEL EMISOR")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(95, 5, f"Empresa / Razón Social: {d['nombre_emisor']}", new_x="RIGHT", new_y="TOP")
-    pdf.cell(95, 5, f"RFC Emisor: {d['rfc_emisor']}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(3)
+        pdf.set_font("helvetica", "B", 8)
+        pdf.cell(18, 5, "DESTINO:", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(100, 5, f"{d.get('nombre_destino', '')}", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "B", 8)
+        pdf.cell(12, 5, "RFC:", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "", 8)
+        rfc_dest_val = d.get('rfc_destino', '') if d.get('rfc_destino', '').strip() else "S/N (Público General)"
+        pdf.cell(0, 5, f"{rfc_dest_val}", new_x="LMARGIN", new_y="NEXT")
+        
+        pdf.set_font("helvetica", "B", 8)
+        pdf.cell(28, 5, "Llegada Estimada:", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(0, 5, f"{d.get('fecha_llegada', '')}", new_x="LMARGIN", new_y="NEXT")
+        
+        pdf.set_font("helvetica", "B", 8)
+        pdf.cell(18, 5, "Dirección:", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "", 8)
+        pdf.multi_cell(0, 5, f"{d.get('dir_destino', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(2)
 
-    # 2. Datos del Operador / Chofer
-    seccion_pdf("2. DATOS DEL OPERADOR / CHOFER")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(95, 5, f"Chofer: {d['nombre_chofer']}", new_x="RIGHT", new_y="TOP")
-    pdf.cell(95, 5, f"RFC Chofer: {d['rfc_chofer']}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(95, 5, f"Tipo de Licencia: {d['tipo_licencia']}", new_x="RIGHT", new_y="TOP")
-    pdf.cell(95, 5, f"Número de Licencia: {d['num_licencia']}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(3)
+        pdf.set_font("helvetica", "B", 8)
+        pdf.cell(42, 5, "Distancia Total Estimada:", new_x="RIGHT", new_y="TOP")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(0, 5, f"{d.get('distancia_km', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
 
-    # 3. Unidad y Seguro
-    seccion_pdf("3. DATOS DE LA UNIDAD Y SEGURO")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(95, 5, f"Unidad: {d['tipo_unidad']} - Eco: {d['eco_unidad']}", new_x="RIGHT", new_y="TOP")
-    pdf.cell(95, 5, f"Placas: {d['placas']}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(95, 5, f"Marca/Modelo: {d['marca_modelo']} (Cap: {d['capacidad']})", new_x="RIGHT", new_y="TOP")
-    pdf.cell(95, 5, f"Aseguradora: {d['aseguradora']} | Póliza: {d['num_poliza']}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(3)
+        # 5. Mercancía SAT
+        seccion_pdf("5. DESCRIPCIÓN Y CLAVES SAT DE LA MERCANCÍA")
+        pdf.set_font("helvetica", "", 8)
+        pdf.cell(0, 5, f"Producto: {d.get('desc_mercancia', '')} | Clave SAT: {d.get('clave_prod_sat', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(95, 5, f"Cantidad: {d.get('cantidad_mercancia', '')} {d.get('clave_unidad_sat', '')}", new_x="RIGHT", new_y="TOP")
+        pdf.cell(95, 5, f"Peso Total: {d.get('peso_mercancia', '')}", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(4)
 
-    # 4. Origen y Destino
-    seccion_pdf("4. RUTA DE TRÁNSITO (ORIGEN Y DESTINO)")
-    
-    pdf.set_font("helvetica", "B", 8)
-    pdf.cell(18, 5, "ORIGEN:", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(100, 5, f"{d['nombre_origen']}", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "B", 8)
-    pdf.cell(12, 5, "RFC:", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(0, 5, f"{d['rfc_origen']}", new_x="LMARGIN", new_y="NEXT")
-    
-    pdf.set_font("helvetica", "B", 8)
-    pdf.cell(28, 5, "Fecha de Salida:", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(0, 5, f"{d['fecha_salida']}", new_x="LMARGIN", new_y="NEXT")
-    
-    pdf.set_font("helvetica", "B", 8)
-    pdf.cell(18, 5, "Dirección:", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "", 8)
-    pdf.multi_cell(0, 5, f"{d['dir_origen']}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
+        # 6. SECCIÓN DE VALIDACIÓN Y CÓDIGO QR
+        seccion_pdf("6. VALIDACIÓN Y VERIFICACIÓN OPERATIVA")
+        
+        enlace_qr = "https://loginda.siat.sat.gob.mx/nidp/app/login?id=ciec&sid=0&option=credential&sid=0&target=https%3A%2F%2Fverificacfdi.facturaelectronica.sat.gob.mx%2Foauth2%2Fcallback%26scope%3Dmscontribuyente%26code_challenge%3DOfkQhIkHLKEVoxtqW3F3RnIR-cUvRqWF3NEUPFGPvDA%26code_challenge_method%3DS256%26state%3Dg9GL1UZNuFOWSrNeAdEUDRF0RATmkhaCjnz2YOldQ1ZgPIAx8nxrxm6gYV5G1eBLVRAx7nBtdUo9q96KfBfMWfdiXOKoG7l3HcjW78km4jpb7puSzBmW0gYKHClUT5op93de%2BGqEUdwbQXvy%2Bq%2B%2FR08agJatdq5sWNUI6A%2B9qQfRrIcsV6DW5LBStnxqskw4icV%2Fo52LwkOgjZ%2FZHQP46N2Jvxk01CXpItNYWoFSnug9voK72sLWEjiqxv8L6LRvz0Vym3cltWNSE%2FXA%2BzROnWevc0wtsaE5cqW1%2FqvEYcxD5az6nsdVasiSWl%2BeD7bCgZ%2FiFPeFIZhNocmdgS70YS1UQjhlKGue%2B%2BflJAB3XYoQcA0cNDL1QkrNTzd7J0OY8DEiqQBJyoAyC4w62vdIw1AiLzS9THpXuVm6Hd%2FBq56zyLRi9IGBxXn3NyWd0ns9DDGTslm2WAnS2YlAs8rU4Q2Ocu837Vf1T4r3mwOw0ppA6ZpsaAtARRh%2BNjf49BmiCBY%2BVJjbu2fJ60vLdEorUmbkyd7y4DUDqYMK6%2FF3WWs6QFHpX4Thuw2sPvVj8U4duCVgNp6CMkHBkOS2J1zG%2FKFuMNLlJSOeg%2FYSJ%2BgSwyn55wCqlPzpZCqIHwxAFh3gm4wHFWgpOArJZB1hMcrO9T98YF7GQ2uLZNm4vFjxgaU%3D"
+        
+        qr_bytes = generar_qr_bytes(enlace_qr)
+        
+        if qr_bytes:
+            y_inicial = pdf.get_y()
+            try:
+                pdf.image(qr_bytes, x=15, y=y_inicial, w=28)
+            except:
+                pass
+            pdf.set_x(48)
+            pdf.set_font("helvetica", "B", 8)
+            pdf.cell(0, 4, f"IDCCP (Folio Carta Porte): {d.get('idccp', '')}", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_x(48)
+            pdf.set_font("helvetica", "", 7)
+            pdf.cell(0, 4, f"Estatus de Verificación: ACCESO AL PORTAL DE ACCESO / SAT", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_x(48)
+            pdf.cell(0, 4, f"Permiso SCT: {d.get('tipo_permiso_sct', '')} - {d.get('num_permiso_sct', '')}", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_x(48)
+            pdf.multi_cell(0, 4, "Este documento ampara el traslado operado con las especificaciones técnicas del catálogo SCT / SAT versión 3.1.", new_x="LMARGIN", new_y="NEXT")
 
-    pdf.set_font("helvetica", "B", 8)
-    pdf.cell(18, 5, "DESTINO:", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(100, 5, f"{d['nombre_destino']}", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "B", 8)
-    pdf.cell(12, 5, "RFC:", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "", 8)
-    rfc_dest_val = d['rfc_destino'] if d['rfc_destino'].strip() else "S/N (Público General)"
-    pdf.cell(0, 5, f"{rfc_dest_val}", new_x="LMARGIN", new_y="NEXT")
-    
-    pdf.set_font("helvetica", "B", 8)
-    pdf.cell(28, 5, "Llegada Estimada:", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(0, 5, f"{d['fecha_llegada']}", new_x="LMARGIN", new_y="NEXT")
-    
-    pdf.set_font("helvetica", "B", 8)
-    pdf.cell(18, 5, "Dirección:", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "", 8)
-    pdf.multi_cell(0, 5, f"{d['dir_destino']}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
-
-    pdf.set_font("helvetica", "B", 8)
-    pdf.cell(42, 5, "Distancia Total Estimada:", new_x="RIGHT", new_y="TOP")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(0, 5, f"{d['distancia_km']}", new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(3)
-
-    # 5. Mercancía
-    seccion_pdf("5. DESCRIPCIÓN DE LA MERCANCÍA")
-    pdf.set_font("helvetica", "", 8)
-    pdf.cell(60, 5, f"Cantidad: {d['cantidad_mercancia']}", new_x="RIGHT", new_y="TOP")
-    pdf.cell(70, 5, f"Producto: {d['desc_mercancia']}", new_x="RIGHT", new_y="TOP")
-    pdf.cell(60, 5, f"Peso: {d['peso_mercancia']}", new_x="LMARGIN", new_y="NEXT")
-
-    return bytes(pdf.output(dest='S'))
+        return bytes(pdf.output(dest='S'))
+    except Exception as e:
+        pdf_err = FPDF()
+        pdf_err.add_page()
+        pdf_err.set_font("helvetica", "B", 12)
+        pdf_err.cell(0, 10, "Error al generar vista completa del PDF.", ln=True)
+        return bytes(pdf_err.output(dest='S'))
 
 
 # ================= AUTENTICACIÓN RÁPIDA =================
 if not st.session_state.auth_econogas:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        if os.path.exists("logo_econogas.jpg"):
-            st.image("logo_econogas.jpg", use_container_width=True)
+        if os.path.exists(LOGO_FILE):
+            st.image(LOGO_FILE, use_container_width=True)
         else:
-            st.markdown("<h1 style='text-align: center;'>🔥</h1>", unsafe_allow_html=True)
+            st.markdown("<h1 style='text-align: center;'>🔵</h1>", unsafe_allow_html=True)
             
-    st.markdown("<h2 style='text-align: center; color: #004080;'>ECONOGAS</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: gray;'>Módulo de Cartas Responsivas y Asignación de Unidades</p>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #0077b6;'>ECONOGAS S.A. DE C.V.</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Módulo de Generación de Carta Porte 3.1</p>", unsafe_allow_html=True)
     
     col_a1, col_a2, col_a3 = st.columns([1, 1.2, 1])
     with col_a2:
@@ -258,11 +342,11 @@ if not st.session_state.auth_econogas:
 
 # ================= MENÚ PRINCIPAL DEL MÓDULO =================
 with st.sidebar:
-    if os.path.exists("logo_econogas.jpg"):
-        st.image("logo_econogas.jpg", use_container_width=True)
+    if os.path.exists(LOGO_FILE):
+        st.image(LOGO_FILE, use_container_width=True)
     st.markdown("---")
     st.markdown("### 🎛️ Menú de Navegación")
-    accion = st.radio("Selecciona una opción:", ["Nueva Carta Responsiva", "Historial de Documentos"])
+    accion = st.radio("Selecciona una opción:", ["Nueva Carta Porte", "Historial de Documentos"])
     st.markdown("---")
     if st.button("Cerrar Sesión", use_container_width=True):
         st.session_state.auth_econogas = False
@@ -271,23 +355,25 @@ with st.sidebar:
 ahora_mx = datetime.now(ZoneInfo("America/Mexico_City"))
 
 # ================= FORMULARIO PRINCIPAL =================
-if accion == "Nueva Carta Responsiva":
-    st.title("📄 ECONOGAS - Generador de Carta Responsiva / Carta Porte")
+if accion == "Nueva Carta Porte":
+    st.title("📄 ECONOGAS - Generador de Carta Porte 3.1")
     st.write("Complete los campos oficiales requeridos para el tránsito seguro de la unidad.")
     st.markdown("---")
 
-    # --- PARTE 1: DATOS DE LA EMPRESA / EMISOR ---
+    # --- PARTE 1: DATOS DE LA EMPRESA Y REGISTRO SCT ---
     with st.container(border=True):
-        st.subheader("1. 🏢 Datos del Emisor (Empresa)")
+        st.subheader("1. 🏢 Datos del Emisor y Registro SCT")
         col_e1, col_e2 = st.columns(2)
         with col_e1:
             nombre_emisor = st.text_input("Razón Social / Empresa Emisora", value="ECONOGAS S.A. de C.V.")
+            tipo_permiso_sct = st.selectbox("Tipo de Permiso SCT", ["TPXX00 - Permiso no contemplado", "AUTR02 - Autotransporte Carga Federal", "AUTR01 - Autotransporte Cargas Específicas"])
         with col_e2:
-            rfc_emisor = st.text_input("RFC del Emisor", value="ECO1203048H7")
+            rfc_emisor = st.text_input("RFC del Emisor", value="ECO1205188P5")
+            num_permiso_sct = st.text_input("Número de Permiso SCT", value="TPXX00-ECONO-2026")
 
     # --- PARTE 2: DATOS DEL CHOFER ---
     with st.container(border=True):
-        st.subheader("2. 👤 Datos del Operador / Chofer")
+        st.subheader("2. 👤 Datos del Operador / Chofer (Figura Transporte)")
         col_c1, col_c2 = st.columns(2)
         with col_c1:
             nombre_chofer = st.text_input("Nombre Completo del Chofer", placeholder="Juan Pérez Gómez")
@@ -371,16 +457,18 @@ if accion == "Nueva Carta Responsiva":
                 
             calle_destino = st.text_input("Calle y Número de Llegada", placeholder="Ej. Av. Principal #10")
 
-    # --- PARTE 6: MERCANCÍA ---
+    # --- PARTE 6: MERCANCÍA Y CLAVES SAT ---
     with st.container(border=True):
-        st.subheader("6. 📦 Descripción de la Mercancía")
+        st.subheader("6. 📦 Descripción y Claves SAT de la Mercancía")
         col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
             cantidad_mercancia = st.text_input("Cantidad", placeholder="Ej. 5,000")
+            clave_unidad_sat = st.selectbox("Clave Unidad SAT", ["LTR - Litros", "KGM - Kilogramos"])
         with col_m2:
             desc_mercancia = st.text_input("Descripción / Producto", value="Gas Licuado de Petróleo (Gas LP)")
+            clave_prod_sat = st.text_input("Clave Producto SAT", value="15111510 (Gas LP)")
         with col_m3:
-            peso_mercancia = st.text_input("Peso (KG / Litros)", placeholder="Ej. 2,500 KG")
+            peso_mercancia = st.text_input("Peso Total (KG / Litros)", placeholder="Ej. 2,500 KG")
 
     # --- CAMPO DE DISTANCIA ---
     with st.container(border=True):
@@ -399,7 +487,7 @@ if accion == "Nueva Carta Responsiva":
         st.success("✅ Esta carta ya fue registrada con éxito en el Historial. Modifica la información si deseas generar una nueva.")
         submitted_carta = False
     else:
-        submitted_carta = st.button("Generar y Registrar Carta", type="primary", use_container_width=True)
+        submitted_carta = st.button("Generar y Registrar Carta Porte", type="primary", use_container_width=True)
 
     if submitted_carta:
         if not nombre_chofer or not rfc_chofer or not num_poliza or not desc_mercancia:
@@ -416,9 +504,14 @@ if accion == "Nueva Carta Responsiva":
             str_salida = f"{f_salida_date.strftime('%d/%m/%Y')} {f_salida_time.strftime('%H:%M')}"
             str_llegada = f"{f_llegada_date.strftime('%d/%m/%Y')} {f_llegada_time.strftime('%H:%M')}"
 
+            idccp_generado = f"CCC{str(uuid.uuid4()).upper()[:20]}"
+
             datos_nueva_carta = {
+                "idccp": idccp_generado,
                 "nombre_emisor": nombre_emisor,
                 "rfc_emisor": rfc_emisor,
+                "tipo_permiso_sct": tipo_permiso_sct,
+                "num_permiso_sct": num_permiso_sct,
                 "nombre_chofer": nombre_chofer,
                 "rfc_chofer": rfc_chofer,
                 "tipo_licencia": tipo_licencia,
@@ -439,7 +532,9 @@ if accion == "Nueva Carta Responsiva":
                 "fecha_llegada": str_llegada,
                 "dir_destino": f"{calle_destino}, Col. {colonia_destino}, C.P. {cp_destino}, {municipio_destino}, {estado_destino}",
                 "cantidad_mercancia": cantidad_mercancia,
+                "clave_unidad_sat": clave_unidad_sat.split(" - ")[0],
                 "desc_mercancia": desc_mercancia,
+                "clave_prod_sat": clave_prod_sat,
                 "peso_mercancia": peso_mercancia,
                 "distancia_km": distancia_final,
                 "fecha_registro": ahora_mx.strftime("%d/%m/%Y %H:%M"),
@@ -459,7 +554,6 @@ elif accion == "Historial de Documentos":
     if not st.session_state.historial_econogas:
         st.info("No hay cartas registradas todavía. Genera una nueva en el menú de la izquierda.")
     else:
-        # --- FILTRO POR FECHAS ---
         with st.container(border=True):
             st.markdown("### 📅 Filtrar por Rango de Fechas")
             col_f_inicio, col_f_fin = st.columns(2)
@@ -498,13 +592,14 @@ elif accion == "Historial de Documentos":
                     with col_h1:
                         st.write(f"📅 **Fecha:** {carta['fecha_registro']}")
                         st.write(f"⛽ **Unidad:** {carta['tipo_unidad']} ({carta['eco_unidad']})")
+                        st.write(f"🆔 **IDCCP:** `{carta.get('idccp', 'N/A')}`")
                     with col_h2:
                         st.write(f"👤 **Chofer:** {carta['nombre_chofer']}")
                         st.write(f"🛣️ **Ruta:** {carta['nombre_origen']} ➔ {carta['nombre_destino']}")
                     with col_h3:
                         pdf_hist_bytes = generar_pdf(carta)
                         st.download_button(
-                            label="📄 Descargar PDF",
+                            label="📄 Descargar PDF SAT",
                             data=pdf_hist_bytes,
                             file_name=f"Econogas_Carta_{carta['eco_unidad']}_{idx}.pdf",
                             mime="application/pdf",
@@ -512,7 +607,7 @@ elif accion == "Historial de Documentos":
                         )
                         if st.session_state.modo_borrado_econogas:
                             if st.button("🗑️ Eliminar Registro", key=f"del_econogas_{idx}"):
-                                indices_a_borrado = idx
+                                indices_a_borrar = idx
 
             if indices_a_borrar is not None:
                 st.session_state.historial_econogas.pop(indices_a_borrar)
