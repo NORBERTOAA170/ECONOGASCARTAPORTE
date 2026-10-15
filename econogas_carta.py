@@ -41,7 +41,6 @@ def cargar_historial():
         try:
             with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # Reconvertir fecha_dt a objeto date de Python
                 for item in data:
                     if "fecha_dt_str" in item:
                         item["fecha_dt"] = datetime.strptime(item["fecha_dt_str"], "%Y-%m-%d").date()
@@ -58,7 +57,6 @@ def guardar_historial(historial):
         historial_a_guardar = []
         for item in historial:
             item_copy = item.copy()
-            # Convertir objeto date a string para poder serializar en JSON
             if "fecha_dt" in item_copy and isinstance(item_copy["fecha_dt"], date):
                 item_copy["fecha_dt_str"] = item_copy["fecha_dt"].strftime("%Y-%m-%d")
                 del item_copy["fecha_dt"]
@@ -66,7 +64,7 @@ def guardar_historial(historial):
             
         with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
             json.dump(historial_a_guardar, f, ensure_ascii=False, indent=2)
-    except Exception as e:
+    except Exception:
         pass
 
 # ================= CONFIGURACIÓN DE LA PÁGINA Y ESTILO AZUL CIELO =================
@@ -100,7 +98,6 @@ MASTER_PASSWORD = "ECONO2026"
 if "auth_econogas" not in st.session_state:
     st.session_state.auth_econogas = False
 
-# Cargar el historial desde el archivo persistente
 if "historial_econogas" not in st.session_state:
     st.session_state.historial_econogas = cargar_historial()
 
@@ -191,15 +188,15 @@ def calcular_distancia_km(origen_str, destino_str):
         return None
     return None
 
-# ================= FUNCIÓN PARA GENERAR QR EN DISCO =================
+# ================= FUNCIÓN PARA GENERAR QR EN DISCO CON MAYOR RESOLUCIÓN =================
 def generar_qr_archivo(contenido):
     if not QRCODE_DISPONIBLE:
         return False
     try:
         qr = qrcode.QRCode(
             version=None,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=4,
+            error_correction=qrcode.constants.ERROR_CORRECT_M, # Calidad media mejorada
+            box_size=6, # Mayor definición en px
             border=1,
         )
         qr.add_data(contenido)
@@ -231,7 +228,7 @@ def generar_pdf(d):
         pdf.ln(4)
 
         def seccion_pdf(titulo):
-            pdf.set_fill_color(217, 234, 253) # Tono azul cielo suave
+            pdf.set_fill_color(217, 234, 253)
             pdf.set_font("helvetica", "B", 9)
             pdf.cell(0, 6, f"  {titulo}", fill=True, new_x="LMARGIN", new_y="NEXT")
             pdf.ln(2)
@@ -321,7 +318,7 @@ def generar_pdf(d):
         pdf.cell(95, 5, f"Peso Total: {d.get('peso_mercancia', '')}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(4)
 
-        # 6. SECCIÓN DE VALIDACIÓN Y CÓDIGO QR EXACTA
+        # 6. SECCIÓN DE VALIDACIÓN Y CÓDIGO QRAMPLIADO (38mm x 38mm PARA ESCANEO RÁPIDO)
         seccion_pdf("6. VALIDACIÓN Y VERIFICACIÓN OPERATIVA")
         
         enlace_qr = "https://loginda.siat.sat.gob.mx/nidp/app/login?id=ciec&sid=0&option=credential&sid=0&target=https%3A%2F%2Fverificacfdi.facturaelectronica.sat.gob.mx%2Foauth2%2Fcallback%26scope%3Dmscontribuyente%26code_challenge%3DOfkQhIkHLKEVoxtqW3F3RnIR-cUvRqWF3NEUPFGPvDA%26code_challenge_method%3DS256%26state%3Dg9GL1UZNuFOWSrNeAdEUDRF0RATmkhaCjnz2YOldQ1ZgPIAx8nxrxm6gYV5G1eBLVRAx7nBtdUo9q96KfBfMWfdiXOKoG7l3HcjW78km4jpb7puSzBmW0gYKHClUT5op93de%2BGqEUdwbQXvy%2Bq%2B%2FR08agJatdq5sWNUI6A%2B9qQfRrIcsV6DW5LBStnxqskw4icV%2Fo52LwkOgjZ%2FZHQP46N2Jvxk01CXpItNYWoFSnug9voK72sLWEjiqxv8L6LRvz0Vym3cltWNSE%2FXA%2BzROnWevc0wtsaE5cqW1%2FqvEYcxD5az6nsdVasiSWl%2BeD7bCgZ%2FiFPeFIZhNocmdgS70YS1UQjhlKGue%2B%2BflJAB3XYoQcA0cNDL1QkrNTzd7J0OY8DEiqQBJyoAyC4w62vdIw1AiLzS9THpXuVm6Hd%2FBq56zyLRi9IGBxXn3NyWd0ns9DDGTslm2WAnS2YlAs8rU4Q2Ocu837Vf1T4r3mwOw0ppA6ZpsaAtARRh%2BNjf49BmiCBY%2BVJjbu2fJ60vLdEorUmbkyd7y4DUDqYMK6%2FF3WWs6QFHpX4Thuw2sPvVj8U4duCVgNp6CMkHBkOS2J1zG%2FKFuMNLlJSOeg%2FYSJ%2BgSwyn55wCqlPzpZCqIHwxAFh3gm4wHFWgpOArJZB1hMcrO9T98YF7GQ2uLZNm4vFjxgaU%3D"
@@ -329,25 +326,27 @@ def generar_pdf(d):
         if generar_qr_archivo(enlace_qr) and os.path.exists(QR_TEMP_FILE):
             y_qr = pdf.get_y()
             try:
-                pdf.image(QR_TEMP_FILE, x=15, y=y_qr, w=28)
+                # QR incrementado a 38mm de ancho para facil escanEO
+                pdf.image(QR_TEMP_FILE, x=12, y=y_qr, w=38)
             except:
                 pass
             
-            pdf.set_xy(48, y_qr)
+            # Ajustamos la posicion del texto al lado derecho (x=53)
+            pdf.set_xy(53, y_qr + 2)
             pdf.set_font("helvetica", "B", 8)
-            pdf.cell(0, 4, f"IDCCP (Folio Carta Porte): {d.get('idccp', '')}", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 5, f"IDCCP (Folio Carta Porte): {d.get('idccp', '')}", new_x="LMARGIN", new_y="NEXT")
             
-            pdf.set_x(48)
-            pdf.set_font("helvetica", "", 7)
-            pdf.cell(0, 4, f"Estatus de Verificación: ACCESO AL PORTAL DE ACCESO / SAT", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_x(53)
+            pdf.set_font("helvetica", "", 7.5)
+            pdf.cell(0, 5, f"Estatus de Verificación: ACCESO AL PORTAL DE ACCESO / SAT", new_x="LMARGIN", new_y="NEXT")
             
-            pdf.set_x(48)
-            pdf.cell(0, 4, f"Permiso SCT: {d.get('tipo_permiso_sct', '')} - {d.get('num_permiso_sct', '')}", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_x(53)
+            pdf.cell(0, 5, f"Permiso SCT: {d.get('tipo_permiso_sct', '')} - {d.get('num_permiso_sct', '')}", new_x="LMARGIN", new_y="NEXT")
             
-            pdf.set_x(48)
-            pdf.multi_cell(0, 4, "Este documento ampara el traslado operado con las especificaciones técnicas del catálogo SCT / SAT versión 3.1.", new_x="LMARGIN", new_y="NEXT")
+            pdf.set_x(53)
+            pdf.multi_cell(0, 4.5, "Este documento ampara el traslado operado con las especificaciones técnicas del catálogo SCT / SAT versión 3.1.", new_x="LMARGIN", new_y="NEXT")
             
-            pdf.ln(10)
+            pdf.ln(12)
 
         return bytes(pdf.output(dest='S'))
     except Exception as e:
@@ -531,12 +530,17 @@ if accion == "Nueva Carta Porte":
         st.success("✅ Esta carta ya fue registrada con éxito en el Historial. Modifica la información si deseas generar una nueva.")
         submitted_carta = False
     else:
+        # Botón único con protección anti-doble clic
         submitted_carta = st.button("Generar y Registrar Carta Porte", type="primary", use_container_width=True)
 
-    if submitted_carta:
+    if submitted_carta and not st.session_state.registro_bloqueado_econogas:
         if not nombre_chofer or not rfc_chofer or not num_poliza or not desc_mercancia:
             st.warning("⚠️ Por favor completa los datos obligatorios del chofer, póliza y mercancía.")
         else:
+            # Bloqueo inmediato para evitar doble envío en clics rápidos
+            st.session_state.registro_bloqueado_econogas = True
+            st.session_state.ultimo_registro_hash_econogas = actual_hash
+
             distancia_final = km_input
             if not distancia_final and municipio_origen and municipio_destino:
                 km_calculados = calcular_distancia_km(f"{municipio_origen}, {estado_origen}", f"{municipio_destino}, {estado_destino}")
@@ -585,10 +589,6 @@ if accion == "Nueva Carta Porte":
                 "fecha_dt": ahora_mx.date()
             }
 
-            st.session_state.ultimo_registro_hash_econogas = actual_hash
-            st.session_state.registro_bloqueado_econogas = True
-            
-            # Insertar en memoria y guardar en archivo JSON local
             st.session_state.historial_econogas.insert(0, datos_nueva_carta)
             guardar_historial(st.session_state.historial_econogas)
             
