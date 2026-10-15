@@ -33,10 +33,53 @@ except ImportError:
 LOGO_FILE = "logo_econogas.jpg"
 QR_TEMP_FILE = "temp_qr_econogas.png"
 HISTORIAL_FILE = "historial_econogas.json"
+CP_FILE = "cp_veracruz_puebla.json"
+
+# ================= CARGA DE CATÁLOGO OFICIAL SEPOMEX (VERACRUZ Y PUEBLA) =================
+@st.cache_data(show_spinner=False)
+def cargar_catalogo_cp_oficial():
+    if os.path.exists(CP_FILE):
+        try:
+            with open(CP_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+CATALOGO_SEPOMEX = cargar_catalogo_cp_oficial()
+
+def consultar_cp_mexico(cp):
+    cp = str(cp).strip().zfill(5)
+    if not cp or len(cp) != 5 or not cp.isdigit():
+        return {"colonia": "", "municipio": "", "estado": "", "pais": "México"}
+    
+    # 1. Búsqueda local inmediata en base oficial Sepomex (Puebla y Veracruz)
+    if cp in CATALOGO_SEPOMEX:
+        return CATALOGO_SEPOMEX[cp]
+    
+    # 2. Respaldo API gratuita si no se encuentra en el archivo local
+    try:
+        url = f"https://api.zippopotam.us/MX/{cp}"
+        resp = requests.get(url, timeout=2.5)
+        if resp.status_code == 200:
+            data = resp.json()
+            places = data.get("places", [])
+            if places:
+                colonia = places[0].get("place name", "")
+                estado = places[0].get("state", "")
+                return {
+                    "colonia": colonia,
+                    "municipio": colonia,
+                    "estado": estado,
+                    "pais": "México"
+                }
+    except Exception:
+        pass
+
+    return {"colonia": "", "municipio": "", "estado": "", "pais": "México"}
 
 # ================= FUNCIONES PARA MANEJO DE HISTORIAL PERSISTENTE =================
 def cargar_historial():
-    """Lee el historial guardado en el archivo JSON local."""
     if os.path.exists(HISTORIAL_FILE):
         try:
             with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
@@ -52,7 +95,6 @@ def cargar_historial():
     return []
 
 def guardar_historial(historial):
-    """Guarda la lista del historial en el archivo JSON local."""
     try:
         historial_a_guardar = []
         for item in historial:
@@ -74,7 +116,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilo visual con tonos azul cielo suaves y formales
 st.markdown("""
     <style>
     .stApp {
@@ -94,7 +135,6 @@ st.markdown("""
 
 MASTER_PASSWORD = "ECONO2026"
 
-# Inicializar estados en la sesión si no existen
 if "auth_econogas" not in st.session_state:
     st.session_state.auth_econogas = False
 
@@ -106,69 +146,6 @@ if "ultimo_registro_hash_econogas" not in st.session_state:
 
 if "registro_bloqueado_econogas" not in st.session_state:
     st.session_state.registro_bloqueado_econogas = False
-
-# ================= CATÁLOGO LOCAL DE C.P. VERIFICADO (MÉXICO) =================
-CATALOGO_LOCAL_CP = {
-    # Veracruz
-    "91400": {"colonia": "Perote Centro", "municipio": "Perote", "estado": "Veracruz", "pais": "México"},
-    "91403": {"colonia": "El Sabinal", "municipio": "Perote", "estado": "Veracruz", "pais": "México"},
-    "91405": {"colonia": "Fovissste", "municipio": "Perote", "estado": "Veracruz", "pais": "México"},
-    "91285": {"colonia": "Tenextepec", "municipio": "Perote", "estado": "Veracruz", "pais": "México"},
-    "91000": {"colonia": "Xalapa Enríquez Centro", "municipio": "Xalapa", "estado": "Veracruz", "pais": "México"},
-    "91190": {"colonia": "Ánimas", "municipio": "Xalapa", "estado": "Veracruz", "pais": "México"},
-    "91110": {"colonia": "Badillo", "municipio": "Xalapa", "estado": "Veracruz", "pais": "México"},
-    "91700": {"colonia": "Veracruz Centro", "municipio": "Veracruz", "estado": "Veracruz", "pais": "México"},
-    # Puebla
-    "72000": {"colonia": "Puebla Centro", "municipio": "Puebla", "estado": "Puebla", "pais": "México"},
-    "72100": {"colonia": "La Paz", "municipio": "Puebla", "estado": "Puebla", "pais": "México"},
-    # Tlaxcala
-    "90000": {"colonia": "Tlaxcala de Xicohténcatl Centro", "municipio": "Tlaxcala", "estado": "Tlaxcala", "pais": "México"},
-    "90300": {"colonia": "Tlaxco Centro", "municipio": "Tlaxco", "estado": "Tlaxcala", "pais": "México"},
-    # Estado de México
-    "54680": {"colonia": "Teoloyucan Centro", "municipio": "Teoloyucan", "estado": "Estado de México", "pais": "México"},
-    "54789": {"colonia": "Santa Cruz", "municipio": "Tepotzotlán", "estado": "Estado de México", "pais": "México"},
-    "54600": {"colonia": "Tepotzotlán Centro", "municipio": "Tepotzotlán", "estado": "Estado de México", "pais": "México"},
-    "54000": {"colonia": "Tlalnepantla Centro", "municipio": "Tlalnepantla de Baz", "estado": "Estado de México", "pais": "México"},
-    "55000": {"colonia": "Ecatepec de Morelos Centro", "municipio": "Ecatepec de Morelos", "estado": "Estado de México", "pais": "México"},
-    "54900": {"colonia": "Tultitlán de Ocampo Centro", "municipio": "Tultitlán", "estado": "Estado de México", "pais": "México"},
-    # Ciudad de México
-    "01000": {"colonia": "San Ángel", "municipio": "Álvaro Obregón", "estado": "Ciudad de México", "pais": "México"},
-    "06000": {"colonia": "Centro", "municipio": "Cuauhtémoc", "estado": "Ciudad de México", "pais": "México"},
-    "15000": {"colonia": "Federal", "municipio": "Venustiano Carranza", "estado": "Ciudad de México", "pais": "México"},
-    # Hidalgo
-    "42000": {"colonia": "Pachuca de Soto Centro", "municipio": "Pachuca de Soto", "estado": "Hidalgo", "pais": "México"},
-    "42188": {"colonia": "San Antonio El Desmonte", "municipio": "Pachuca de Soto", "estado": "Hidalgo", "pais": "México"},
-    "43960": {"colonia": "Apan Centro", "municipio": "Apan", "estado": "Hidalgo", "pais": "México"}
-}
-
-@st.cache_data(show_spinner=False)
-def consultar_cp_mexico(cp):
-    cp = str(cp).strip()
-    if not cp or len(cp) != 5 or not cp.isdigit():
-        return {"colonia": "", "municipio": "", "estado": "", "pais": "México"}
-    
-    if cp in CATALOGO_LOCAL_CP:
-        return CATALOGO_LOCAL_CP[cp]
-    
-    try:
-        url = f"https://api.zippopotam.us/MX/{cp}"
-        resp = requests.get(url, timeout=3.0)
-        if resp.status_code == 200:
-            data = resp.json()
-            places = data.get("places", [])
-            if places:
-                colonia = places[0].get("place name", "")
-                estado = places[0].get("state", "")
-                return {
-                    "colonia": colonia,
-                    "municipio": colonia,
-                    "estado": estado,
-                    "pais": "México"
-                }
-    except Exception:
-        pass
-
-    return {"colonia": "", "municipio": "", "estado": "", "pais": "México"}
 
 def calcular_distancia_km(origen_str, destino_str):
     if not GEOPY_DISPONIBLE:
@@ -188,15 +165,14 @@ def calcular_distancia_km(origen_str, destino_str):
         return None
     return None
 
-# ================= FUNCIÓN PARA GENERAR QR EN DISCO CON MAYOR RESOLUCIÓN =================
 def generar_qr_archivo(contenido):
     if not QRCODE_DISPONIBLE:
         return False
     try:
         qr = qrcode.QRCode(
             version=None,
-            error_correction=qrcode.constants.ERROR_CORRECT_M, # Calidad media mejorada
-            box_size=6, # Mayor definición en px
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=6,
             border=1,
         )
         qr.add_data(contenido)
@@ -318,7 +294,7 @@ def generar_pdf(d):
         pdf.cell(95, 5, f"Peso Total: {d.get('peso_mercancia', '')}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(4)
 
-        # 6. SECCIÓN DE VALIDACIÓN Y CÓDIGO QRAMPLIADO (38mm x 38mm PARA ESCANEO RÁPIDO)
+        # 6. SECCIÓN DE VALIDACIÓN Y CÓDIGO QR AMPLIADO (38mm)
         seccion_pdf("6. VALIDACIÓN Y VERIFICACIÓN OPERATIVA")
         
         enlace_qr = "https://loginda.siat.sat.gob.mx/nidp/app/login?id=ciec&sid=0&option=credential&sid=0&target=https%3A%2F%2Fverificacfdi.facturaelectronica.sat.gob.mx%2Foauth2%2Fcallback%26scope%3Dmscontribuyente%26code_challenge%3DOfkQhIkHLKEVoxtqW3F3RnIR-cUvRqWF3NEUPFGPvDA%26code_challenge_method%3DS256%26state%3Dg9GL1UZNuFOWSrNeAdEUDRF0RATmkhaCjnz2YOldQ1ZgPIAx8nxrxm6gYV5G1eBLVRAx7nBtdUo9q96KfBfMWfdiXOKoG7l3HcjW78km4jpb7puSzBmW0gYKHClUT5op93de%2BGqEUdwbQXvy%2Bq%2B%2FR08agJatdq5sWNUI6A%2B9qQfRrIcsV6DW5LBStnxqskw4icV%2Fo52LwkOgjZ%2FZHQP46N2Jvxk01CXpItNYWoFSnug9voK72sLWEjiqxv8L6LRvz0Vym3cltWNSE%2FXA%2BzROnWevc0wtsaE5cqW1%2FqvEYcxD5az6nsdVasiSWl%2BeD7bCgZ%2FiFPeFIZhNocmdgS70YS1UQjhlKGue%2B%2BflJAB3XYoQcA0cNDL1QkrNTzd7J0OY8DEiqQBJyoAyC4w62vdIw1AiLzS9THpXuVm6Hd%2FBq56zyLRi9IGBxXn3NyWd0ns9DDGTslm2WAnS2YlAs8rU4Q2Ocu837Vf1T4r3mwOw0ppA6ZpsaAtARRh%2BNjf49BmiCBY%2BVJjbu2fJ60vLdEorUmbkyd7y4DUDqYMK6%2FF3WWs6QFHpX4Thuw2sPvVj8U4duCVgNp6CMkHBkOS2J1zG%2FKFuMNLlJSOeg%2FYSJ%2BgSwyn55wCqlPzpZCqIHwxAFh3gm4wHFWgpOArJZB1hMcrO9T98YF7GQ2uLZNm4vFjxgaU%3D"
@@ -326,12 +302,10 @@ def generar_pdf(d):
         if generar_qr_archivo(enlace_qr) and os.path.exists(QR_TEMP_FILE):
             y_qr = pdf.get_y()
             try:
-                # QR incrementado a 38mm de ancho para facil escanEO
                 pdf.image(QR_TEMP_FILE, x=12, y=y_qr, w=38)
             except:
                 pass
             
-            # Ajustamos la posicion del texto al lado derecho (x=53)
             pdf.set_xy(53, y_qr + 2)
             pdf.set_font("helvetica", "B", 8)
             pdf.cell(0, 5, f"IDCCP (Folio Carta Porte): {d.get('idccp', '')}", new_x="LMARGIN", new_y="NEXT")
@@ -355,7 +329,6 @@ def generar_pdf(d):
         pdf_err.set_font("helvetica", "B", 12)
         pdf_err.cell(0, 10, "Error al generar vista completa del PDF.", ln=True)
         return bytes(pdf_err.output(dest='S'))
-
 
 # ================= AUTENTICACIÓN RÁPIDA =================
 if not st.session_state.auth_econogas:
@@ -394,7 +367,6 @@ with st.sidebar:
 
 ahora_mx = datetime.now(ZoneInfo("America/Mexico_City"))
 
-# Re-cargar siempre el historial al navegar para reflejar cambios globales
 st.session_state.historial_econogas = cargar_historial()
 
 # ================= FORMULARIO PRINCIPAL =================
@@ -463,7 +435,7 @@ if accion == "Nueva Carta Porte":
             with col_f2:
                 f_salida_time = st.time_input("Hora de Salida", value=ahora_mx.time())
             
-            cp_origen = st.text_input("CP Origen", max_chars=5, placeholder="Ej. 91400, 42188")
+            cp_origen = st.text_input("CP Origen", max_chars=5, placeholder="Ej. 91400, 72000")
             info_o = consultar_cp_mexico(cp_origen)
             
             col_o1, col_o2 = st.columns(2)
@@ -487,7 +459,7 @@ if accion == "Nueva Carta Porte":
             with col_f4:
                 f_llegada_time = st.time_input("Hora Estimada Llegada", value=time(18, 0))
             
-            cp_destino = st.text_input("CP Destino", max_chars=5, placeholder="Ej. 54680, 91000")
+            cp_destino = st.text_input("CP Destino", max_chars=5, placeholder="Ej. 91000, 72100")
             info_d = consultar_cp_mexico(cp_destino)
             
             col_d1, col_d2 = st.columns(2)
@@ -530,14 +502,12 @@ if accion == "Nueva Carta Porte":
         st.success("✅ Esta carta ya fue registrada con éxito en el Historial. Modifica la información si deseas generar una nueva.")
         submitted_carta = False
     else:
-        # Botón único con protección anti-doble clic
         submitted_carta = st.button("Generar y Registrar Carta Porte", type="primary", use_container_width=True)
 
     if submitted_carta and not st.session_state.registro_bloqueado_econogas:
         if not nombre_chofer or not rfc_chofer or not num_poliza or not desc_mercancia:
             st.warning("⚠️ Por favor completa los datos obligatorios del chofer, póliza y mercancía.")
         else:
-            # Bloqueo inmediato para evitar doble envío en clics rápidos
             st.session_state.registro_bloqueado_econogas = True
             st.session_state.ultimo_registro_hash_econogas = actual_hash
 
