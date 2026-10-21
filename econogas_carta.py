@@ -29,7 +29,7 @@ except ImportError:
 # ================= CONFIGURACIÓN DE LA PÁGINA =================
 st.set_page_config(
     page_title="ECONOGAS - Módulo Carta Porte",
-    page_icon="🚚",
+    page_icon="🔥",
     layout="wide"
 )
 
@@ -178,10 +178,11 @@ def generar_pdf(d):
         pdf = FPDF(orientation='P', unit='mm', format='A4')
         pdf.add_page()
         
+        # LOGO MÁS GRANDE (38mm de ancho)
         logo_path = "logo_econogas.jpg" if os.path.exists("logo_econogas.jpg") else "logo.jpg"
         if os.path.exists(logo_path):
             try:
-                pdf.image(logo_path, 10, 10, 25)
+                pdf.image(logo_path, 10, 8, 38)
             except:
                 pass
 
@@ -344,7 +345,7 @@ if not st.session_state.auth_econogas:
         if os.path.exists(logo_path):
             st.image(logo_path, use_container_width=True)
         else:
-            st.markdown("<h1 style='text-align: center;'>🚚</h1>", unsafe_allow_html=True)
+            st.markdown("<h1 style='text-align: center;'>🔥</h1>", unsafe_allow_html=True)
             
     st.markdown("<h2 style='text-align: center; color: #004080;'>ECONOGAS S.A. DE C.V.</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: gray;'>Módulo de Generación de Carta Porte</p>", unsafe_allow_html=True)
