@@ -1,6 +1,5 @@
 streamlit
-requests
-geopy
+supabase
 fpdf2
-Pillow
 qrcode
+requests
