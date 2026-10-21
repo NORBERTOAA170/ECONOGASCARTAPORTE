@@ -178,7 +178,6 @@ def generar_pdf(d):
         pdf = FPDF(orientation='P', unit='mm', format='A4')
         pdf.add_page()
         
-        # LOGO MÁS GRANDE (38mm de ancho)
         logo_path = "logo_econogas.jpg" if os.path.exists("logo_econogas.jpg") else "logo.jpg"
         if os.path.exists(logo_path):
             try:
@@ -381,7 +380,7 @@ if accion == "Nueva Carta Porte":
     st.write("Complete los campos oficiales requeridos para el tránsito seguro de la unidad.")
     st.markdown("---")
 
-    # 1. Emisor y Permiso de Gas LP (Permiso vacante)
+    # 1. Emisor y Permiso de Gas LP
     with st.container(border=True):
         st.subheader("1. 🏢 Datos del Emisor y Permiso de Distribución")
         col_e1, col_e2 = st.columns(2)
@@ -390,7 +389,7 @@ if accion == "Nueva Carta Porte":
         with col_e2:
             rfc_emisor = st.text_input("RFC del Emisor", value="")
         
-        num_permiso_sct = st.text_input("Permiso de Distribución de Gas LP", value="", placeholder="Escriba el permiso oficial")
+        num_permiso_sct = st.text_input("Permiso de Distribución de Gas LP", value="LP/20474/DIST/PLA/2017")
 
     # 2. Chofer con captura manual ordenada 2x2 por defecto
     with st.container(border=True):
