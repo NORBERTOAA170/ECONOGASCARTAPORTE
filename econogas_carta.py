@@ -33,7 +33,8 @@ st.set_page_config(
     layout="wide"
 )
 
-MASTER_PASSWORD = "NAUPA2026"
+# CONTRASEÑA ACTUALIZADA PARA ECONOGAS
+MASTER_PASSWORD = "ECONOGAS2026"
 
 # ================= CREDENCIALES DE SUPABASE (NUBE) =================
 SUPABASE_URL = "https://qikmlgbnwbdmuqziemia.supabase.co"
