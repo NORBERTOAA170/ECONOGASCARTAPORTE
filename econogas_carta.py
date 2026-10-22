@@ -524,7 +524,8 @@ if accion == "Nueva Carta Porte":
             with col_f1:
                 f_salida_date = st.date_input("Fecha de Salida", value=ahora_mx.date())
             with col_f2:
-                f_salida_time = st.time_input("Hora de Salida", value=ahora_mx.time())
+                # Hora en texto fijo editable para evitar saltos automáticos
+                hora_salida_str = st.text_input("Hora de Salida (HH:MM)", value=ahora_mx.strftime("%H:%M"))
 
             if tipo_modo_origen == "Planta ECONOGAS (Oficial)":
                 rfc_origen = "ECO1205188P5"
@@ -573,7 +574,8 @@ if accion == "Nueva Carta Porte":
             with col_f3:
                 f_llegada_date = st.date_input("Fecha Estimada Llegada", value=ahora_mx.date())
             with col_f4:
-                f_llegada_time = st.time_input("Hora Estimada Llegada", value=time(18, 0))
+                # Hora en texto fijo editable para evitar saltos automáticos
+                hora_llegada_str = st.text_input("Hora Estimada Llegada (HH:MM)", value="18:00")
 
             if tipo_modo_destino == "Cliente Específico (C.P. / Domicilio)":
                 rfc_destino = st.text_input("RFC Llegada / Cliente (Opcional)", placeholder="RFC de destino (Vacío si es público general)")
@@ -660,8 +662,8 @@ if accion == "Nueva Carta Porte":
         if not nombre_chofer or not num_poliza or not desc_mercancia:
             st.warning("⚠️ Por favor completa los datos obligatorios del chofer, póliza y mercancía.")
         else:
-            str_salida = f"{f_salida_date.strftime('%d/%m/%Y')} {f_salida_time.strftime('%H:%M')}"
-            str_llegada = f"{f_llegada_date.strftime('%d/%m/%Y')} {f_llegada_time.strftime('%H:%M')}"
+            str_salida = f"{f_salida_date.strftime('%d/%m/%Y')} {hora_salida_str}"
+            str_llegada = f"{f_llegada_date.strftime('%d/%m/%Y')} {hora_llegada_str}"
             
             # OBTENER FOLIO DE LA NUBE
             folio_generado = obtener_siguiente_folio_nube()
