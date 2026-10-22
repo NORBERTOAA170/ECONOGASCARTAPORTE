@@ -436,7 +436,7 @@ if accion == "Nueva Carta Porte":
         with col_e1:
             nombre_emisor = st.text_input("Razón Social / Empresa Emisora", value="ECONOGAS S.A. de C.V.")
         with col_e2:
-            rfc_emisor = st.text_input("RFC del Emisor", value="")
+            rfc_emisor = st.text_input("RFC del Emisor", value="ECO1205188P5")
         
         num_permiso_sct = st.text_input("Permiso de Distribución de Gas LP", value="LP/20474/DIST/PLA/2017")
 
