@@ -33,7 +33,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# CONTRASEÑA ACTUALIZADA PARA ECONOGAS
 MASTER_PASSWORD = "ECONOGAS2026"
 
 # ================= CREDENCIALES DE SUPABASE (NUBE) =================
@@ -51,8 +50,27 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# ================= CATÁLOGO DE OPERADORES (VACÍO PARA ECONOGAS) =================
-CATALOGO_CHOFERES = []
+# ================= CATÁLOGO DE OPERADORES DE ECONOGAS =================
+CATALOGO_CHOFERES = [
+    {
+        "nombre": "DANIEL FLORES HERNANDEZ",
+        "rfc": "FOHD8803071N2",
+        "tipo": "ESTATAL",
+        "licencia": "UBOCKQCYR"
+    },
+    {
+        "nombre": "PABLO SANCHEZ CASTILLO",
+        "rfc": "SACP860517V41",
+        "tipo": "ESTATAL",
+        "licencia": "UBON3HHFH"
+    },
+    {
+        "nombre": "MARTIN HERNANDEZ VIDAL",
+        "rfc": "HEVM921213TR3",
+        "tipo": "ESTATAL",
+        "licencia": "XL271703"
+    }
+]
 
 # ================= FUNCIONES DE NUBE (SUPABASE) =================
 def obtener_siguiente_folio_nube():
@@ -105,7 +123,7 @@ def eliminar_carta_nube(carta_id):
             supabase.table("cartas_econogas").delete().eq("id", carta_id).execute()
             return True
         except Exception as e:
-            st.error(f"❌ Error al eliminar de Supabase: {e}")
+            st.error(f"⚠️ Error al eliminar de Supabase: {e}")
             return False
     return False
 
@@ -179,10 +197,19 @@ def generar_pdf(d):
         pdf = FPDF(orientation='P', unit='mm', format='A4')
         pdf.add_page()
         
-        logo_path = "logo_econogas.jpg" if os.path.exists("logo_econogas.jpg") else "logo.jpg"
-        if os.path.exists(logo_path):
+        # LOGO IZQUIERDA: ECONOGAS (38mm de ancho)
+        logo_econogas_path = "logo_econogas.jpg"
+        if os.path.exists(logo_econogas_path):
             try:
-                pdf.image(logo_path, 10, 8, 38)
+                pdf.image(logo_econogas_path, 10, 8, 38)
+            except:
+                pass
+
+        # LOGO DERECHA: NAUPAGAS (38mm de ancho, en esquina superior derecha x=162)
+        logo_naupa_path = "logo.jpg"
+        if os.path.exists(logo_naupa_path):
+            try:
+                pdf.image(logo_naupa_path, 162, 8, 38)
             except:
                 pass
 
@@ -392,12 +419,11 @@ if accion == "Nueva Carta Porte":
         
         num_permiso_sct = st.text_input("Permiso de Distribución de Gas LP", value="LP/20474/DIST/PLA/2017")
 
-    # 2. Chofer con captura manual ordenada 2x2 por defecto
+    # 2. Chofer con Catálogo y opción de captura manual 2x2
     with st.container(border=True):
         st.subheader("2. 👤 Datos del Operador / Chofer (Figura Transporte)")
         
-        opciones_modo = ["Personalizado (Manual)"] if not CATALOGO_CHOFERES else ["Catálogo de Operadores", "Personalizado (Manual)"]
-        modo_chofer = st.radio("Modo de Selección de Chofer:", opciones_modo, horizontal=True)
+        modo_chofer = st.radio("Modo de Selección de Chofer:", ["Catálogo de Operadores", "Personalizado (Manual)"], horizontal=True)
 
         if modo_chofer == "Catálogo de Operadores" and CATALOGO_CHOFERES:
             nombres_choferes = [c["nombre"] for c in CATALOGO_CHOFERES]
