@@ -50,25 +50,46 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# ================= CATÁLOGO DE OPERADORES DE ECONOGAS =================
+# ================= CATÁLOGO DE OPERADORES, UNIDADES Y PÓLIZAS =================
 CATALOGO_CHOFERES = [
     {
         "nombre": "DANIEL FLORES HERNANDEZ",
         "rfc": "FOHD8803071N2",
         "tipo": "ESTATAL",
-        "licencia": "UBOCKQCYR"
+        "licencia": "UBOCKQCYR",
+        "eco": "13",
+        "placas": "XU08753",
+        "marca": "CHEVROLET 3500",
+        "capacidad_txt": "4,000 Litros",
+        "capacidad_num": 4000.0,
+        "aseguradora": "QUALITAS",
+        "poliza": "7150013983"
     },
     {
         "nombre": "PABLO SANCHEZ CASTILLO",
         "rfc": "SACP860517V41",
         "tipo": "ESTATAL",
-        "licencia": "UBON3HHFH"
+        "licencia": "UBON3HHFH",
+        "eco": "16",
+        "placas": "LG53265",
+        "marca": "CHEVROLET 3500",
+        "capacidad_txt": "4,000 Litros",
+        "capacidad_num": 4000.0,
+        "aseguradora": "QUALITAS",
+        "poliza": "7150013990"
     },
     {
         "nombre": "MARTIN HERNANDEZ VIDAL",
         "rfc": "HEVM921213TR3",
         "tipo": "ESTATAL",
-        "licencia": "XL271703"
+        "licencia": "XL271703",
+        "eco": "17",
+        "placas": "XU94347",
+        "marca": "CHEVROLET 3500",
+        "capacidad_txt": "3,700 Litros",
+        "capacidad_num": 3700.0,
+        "aseguradora": "QUALITAS",
+        "poliza": "7150015649"
     }
 ]
 
@@ -123,7 +144,7 @@ def eliminar_carta_nube(carta_id):
             supabase.table("cartas_econogas").delete().eq("id", carta_id).execute()
             return True
         except Exception as e:
-            st.error(f"⚠️ Error al eliminar de Supabase: {e}")
+            st.error(f"❌ Error al eliminar de Supabase: {e}")
             return False
     return False
 
@@ -205,7 +226,7 @@ def generar_pdf(d):
             except:
                 pass
 
-        # LOGO DERECHA: NAUPAGAS (38mm de ancho, en esquina superior derecha x=162)
+        # LOGO DERECHA: NAUPAGAS (38mm de ancho)
         logo_naupa_path = "logo.jpg"
         if os.path.exists(logo_naupa_path):
             try:
@@ -419,6 +440,15 @@ if accion == "Nueva Carta Porte":
         
         num_permiso_sct = st.text_input("Permiso de Distribución de Gas LP", value="LP/20474/DIST/PLA/2017")
 
+    # Variables por defecto para auto-llenado
+    def_eco = ""
+    def_placas = ""
+    def_marca = ""
+    def_capacidad_txt = "12,900 Litros"
+    def_capacidad_num = 4000.0
+    def_aseguradora = ""
+    def_poliza = ""
+
     # 2. Chofer con Catálogo y opción de captura manual 2x2
     with st.container(border=True):
         st.subheader("2. 👤 Datos del Operador / Chofer (Figura Transporte)")
@@ -430,6 +460,15 @@ if accion == "Nueva Carta Porte":
             chofer_seleccionado = st.selectbox("Seleccione al Chofer del Catálogo", options=nombres_choferes)
             datos_chofer_actual = next((c for c in CATALOGO_CHOFERES if c["nombre"] == chofer_seleccionado), CATALOGO_CHOFERES[0])
             
+            # Asignar datos de unidad y seguro del chofer seleccionado
+            def_eco = datos_chofer_actual["eco"]
+            def_placas = datos_chofer_actual["placas"]
+            def_marca = datos_chofer_actual["marca"]
+            def_capacidad_txt = datos_chofer_actual["capacidad_txt"]
+            def_capacidad_num = datos_chofer_actual["capacidad_num"]
+            def_aseguradora = datos_chofer_actual["aseguradora"]
+            def_poliza = datos_chofer_actual["poliza"]
+
             # Rectángulo ordenado en 2x2 para Catálogo
             col_c1, col_c2 = st.columns(2)
             with col_c1:
@@ -448,29 +487,29 @@ if accion == "Nueva Carta Porte":
                 tipo_licencia = st.selectbox("Tipo de Licencia", ["Federal", "Estatal", "Chofer / Vendedor"])
                 num_licencia = st.text_input("Número de Licencia", placeholder="Número oficial de licencia")
 
-    # 3. Unidad
+    # 3. Unidad (Autollenada con la pipa del chofer)
     with st.container(border=True):
         st.subheader("3. ⛽ Datos de la Unidad")
         col_u1, col_u2 = st.columns(2)
         with col_u1:
             tipo_unidad = st.selectbox("Tipo de Unidad", ["Autotanque (Pipa)", "Vehículo Repartidor (Cilindrera)"])
-            eco_unidad = st.text_input("Número Económico", placeholder="Ej. PIPA-01 o CIL-05")
-            placas = st.text_input("Placas", placeholder="Ej. XX-00-XXX")
+            eco_unidad = st.text_input("Número Económico", value=def_eco, placeholder="Ej. PIPA-01 o CIL-05")
+            placas = st.text_input("Placas", value=def_placas, placeholder="Ej. XX-00-XXX")
         with col_u2:
-            marca_modelo = st.text_input("Marca / Modelo", placeholder="Ej. Ford F-350 2020")
+            marca_modelo = st.text_input("Marca / Modelo", value=def_marca, placeholder="Ej. Ford F-350 2020")
             if tipo_unidad == "Autotanque (Pipa)":
-                capacidad = st.text_input("Capacidad descriptiva de la unidad", value="12,900 Litros", placeholder="Ej. 12,900 Litros")
+                capacidad = st.text_input("Capacidad descriptiva de la unidad", value=def_capacidad_txt, placeholder="Ej. 4,000 Litros")
             else:
                 capacidad = st.text_input("Capacidad descriptiva de la unidad", value="Vehículo Repartidor Cilindros", placeholder="Ej. Cilindros 20kg y 30kg")
 
-    # 4. Seguro
+    # 4. Seguro (Autollenado con la póliza del chofer)
     with st.container(border=True):
         st.subheader("4. 🛡️ Póliza de Seguro")
         col_s1, col_s2 = st.columns(2)
         with col_s1:
-            aseguradora = st.text_input("Compañía Aseguradora", placeholder="Ej. GNP, Qualitas, AXA")
+            aseguradora = st.text_input("Compañía Aseguradora", value=def_aseguradora, placeholder="Ej. GNP, Qualitas, AXA")
         with col_s2:
-            num_poliza = st.text_input("Número de Póliza", placeholder="Ej. POL-987654321")
+            num_poliza = st.text_input("Número de Póliza", value=def_poliza, placeholder="Ej. POL-987654321")
 
     # 5. Origen y Destino
     with st.container(border=True):
@@ -569,15 +608,10 @@ if accion == "Nueva Carta Porte":
         st.subheader("6. 📦 Descripción y Claves de la Mercancía")
         if tipo_unidad == "Autotanque (Pipa)":
             st.markdown("#### ⛽ Configuración para Pipa (Medidor Magnetel)")
-            opciones_capacidades = [4000.0, 4400.0, 4500.0, 5000.0, 12900.0, 13900.0, 24000.0, "Otra (Personalizada)"]
             
             col_calc1, col_calc2 = st.columns(2)
             with col_calc1:
-                capacidad_seleccionada = st.selectbox("Capacidad Total de la Pipa (Litros)", options=opciones_capacidades, index=4)
-                if capacidad_seleccionada == "Otra (Personalizada)":
-                    capacidad_total_num = st.number_input("Especifique capacidad (Litros)", min_value=0.0, value=10000.0, step=100.0)
-                else:
-                    capacidad_total_num = float(capacidad_seleccionada)
+                capacidad_total_num = st.number_input("Capacidad Total de la Pipa (Litros)", min_value=0.0, value=def_capacidad_num, step=100.0)
             with col_calc2:
                 porcentaje_magnetel = st.number_input("Porcentaje de Llenado (%) - Magnetel", min_value=0.0, max_value=100.0, value=70.0, step=0.5)
 
