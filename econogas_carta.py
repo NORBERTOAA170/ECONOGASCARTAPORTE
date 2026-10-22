@@ -527,7 +527,7 @@ if accion == "Nueva Carta Porte":
                 f_salida_time = st.time_input("Hora de Salida", value=ahora_mx.time())
 
             if tipo_modo_origen == "Planta ECONOGAS (Oficial)":
-                rfc_origen = ""
+                rfc_origen = "ECO1205188P5"
                 nombre_origen = "ECONOGAS"
                 cp_origen = "91282"
                 colonia_origen = "El Limon"
